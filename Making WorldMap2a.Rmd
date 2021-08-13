@@ -688,7 +688,7 @@ So our checks indicate success.  First, we declined to restore the two defunct d
 
 Second, of the ISO vs Map cases, only the sparsely populated [Tokelau](https://en.wikipedia.org/wiki/Tokelau) possibly matters, but [OpenDataSoft](https://public.opendatasoft.com/) does not have the polygon coordinates for it.  The [Chagos Archipelago](https://en.wikipedia.org/wiki/Chagos_Archipelago), included in our map, makes up the most important part of the [British Indian Ocean Territory](https://en.wikipedia.org/wiki/British_Indian_Ocean_Territory).  The remaining four cases comprise either seasonally inhabited regions or (and) remote military bases.  These produce negligible data in terms of economic or public health statistics, and can be safely ignored for such purposes.  
 
-Third and finally, the original map makers included the [Siachen Glacier](https://en.wikipedia.org/wiki/Siachen_Glacier).  This is a geographical entity and a disputed territory: but it does not have an individual ISO code, does not have civilian residents (only military), and does not produce the relevant economic or public health data. So it can be safely removed from `world_map2`.
+Third and finally, the original map makers included the [Siachen Glacier](https://en.wikipedia.org/wiki/Siachen_Glacier).  This is a geographical entity and a disputed territory: but it does not have an individual ISO code, does not have civilian residents (only military), and does not produce the relevant economic or public health data. If we remove it from `world_map2`, however, we will get a small but annoying empty space (usually portrayed as a white dot). So it stays in.
 
 
 ### Add ISO to Map
