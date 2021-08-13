@@ -1,0 +1,757 @@
+---
+title: "Updating ggplot2::map_data('world')"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes 
+    toc_float: yes
+  toc: default
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.align = "center",
+	fig.fullwidth = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+
+## Why Bother?
+
+In Spring 2021, I  taught a course entitled "Telling Stories with Data" (*TSD*), which  introduced non-STEM majors to the [Tidyverse](https://jhudatascience.org/tidyversecourse/) and basic data visualization and analysis.  I had bright students, but ones who typically had NO prior experience with either statistical analysis or computer programming.  So *TSD* was designed as a soft entry, beginner-level guide to working with data. For our stories, we started with various data sets available in R packages -- the usual suspects -- and then progressed to data sets in the wild.  
+
+Our capstone project required to the students to use two data sets from the [Gapminder.org foundation](https://www.gapminder.org/data/) to build a dashboard and tell a coherent story with visualizations, summary stats, text contextualization and analyses, and at least one basic model or hypothesis test. (Three capstone project examples: [Bonnie](https://rpubs.com/stu_Bonnie/783208), [Chanley](https://rpubs.com/Chanley/783736), and [Bethia](https://rpubs.com/Bethia/783742)). 
+
+
+```{r libraries}
+library(tidyverse)
+library(here)
+library(visdat)
+```
+
+
+### Choropleth Maps Made Easy?
+For their capstone projects, nearly all the students wanted to include [Choropleth maps](https://en.wikipedia.org/wiki/Choropleth_map).  Understandable.  The students were working with global data, and Choropleth maps both look impressive and are useful. But we ran into some problems. 
+
+Gapminder.org uses the nation-state as a primary unit of analysis: the `country` variable in their data sets.  But they do NOT include the standard [ISO country codes](https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes). The R ecosystem has various mapping tools, some well outside the Tidyverse, but all of which require remapping at least some of the Gapminder `country` names to the geo-data units; or, vice versa.  So until we have all the primary units remapped, we get something like this:
+
+```{r bad_ex}
+load(here::here("data", "tidy_data", "cmap.rda") )
+bad_ex
+```
+
+
+### Just ggplot?
+To simplify this as the course required, and to stay largely within the Tidyverse ecosystem so as to avoid cognitive overload, we went with the world map from `ggplot2::map_data("world")`.  To ensure compabitility with the Gapminder.org date, we created a new data set with the geo-mapping information: `world_map2`.  We fixed most of the flaws, and did "good enough" quick and dirty Choropleth maps -- but I wanted to finish what we started.
+
+If data was missing for a given nation for a given year, we wanted to know that. We also wanted our mapping data compatible across all the Gapminder.org data sets.  We wanted a result more like this:
+
+```{r good_ex}
+plotly::ggplotly(good_ex)
+```
+
+
+
+##  The Project
+
+We would not need to rely on matching names if we had a version of `ggplot2::map_data("world")` which was updated and contained the standard ISO country codes: [Alpha-2 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2), [Alpha-3 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3), and [Numeric code](https://en.wikipedia.org/wiki/ISO_3166-1_numeric). So that is what the data set `world_map2` offers. 
+
+
+The remainder of this document describes the process of creating `world_map2`, our new  data set directly dervied from `ggplot2::map_data("world")`. It -- `world_map2`, this RMD,  and a supporting case study, are available at [github.com/Thom-J-H/map_Gap_2_Tidy](https://github.com/Thom-J-H/map_Gap_2_Tidy). I include in this document below all the steps and rationale involved for full transparency and in hopes that other people can improve upon this effort or offer a better solution for working with Global Studies data sets (like the Gapminder.org data) in the Tidyverse.
+
+
+### Two Core Problems
+
+When using `ggplot2::map_data("world")` (hereafter `world_map`)  with the Gapminder.org or other Global Studies data sets, we have two core problems.  First, the names for `country` are not consistent across data sets.The informal names of the nations can vary greatly; the formal names, often too long for appropriate labeling and generally not even recorded. In the Gapminder.org data sets, which largely share a common source, for [Sint Maarten](https://en.wikipedia.org/wiki/Sint_Maarten), we have two values: "Sint Maarten" and "Sint Maarten (Dutch part)".  This because the same island also contains the the [Collectivity of Saint Martin](https://en.wikipedia.org/wiki/Collectivity_of_Saint_Martin), more commonly known as the French "Saint Martin".  When we move from the Gapminder.org data sets to others, the country name values can vary greatly.  In `world_map`, the preferred "Eswatini" is the older "Swaziland"; "North Macedonia" as of 2019, the older "Macedonia"; and so on. 
+
+The obvious solution to this problem of inconsistent country nomenclature: use the [ISO](https://en.wikipedia.org/wiki/ISO_3166-1) codes: the three letter designation, or the three digit ONU, or both.  Neither the Gapminder.org data sets nor `world_map` does so.
+
+
+### What comprises a country?
+Second, in practical terms, we have no simple definition of what comprises a country. As of 4 September 2020, Kosovo was recognized by 97 out of 193 (50.26%) United Nations member states; as of July 2021, [Western Sahara](https://en.wikipedia.org/wiki/Sahrawi_Arab_Democratic_Republic) was recognized by 45 out of a total of 193 United Nations member states. Both have `region` values with the corresponding polygon coordinates in `world_map`.  They may or may not appear in various Global Studies data collections. 
+
+Likewise, we also have existing designations that do not distinguish clearly between geographical boundaries and political boundaries. Some of the Gapminder data sets, for example, report on the "Channel Islands":  more properly, the two Crown dependencies, the [Bailiwick of Jersey](https://en.wikipedia.org/wiki/Jersey), and the [Bailiwick of Guernsey](https://en.wikipedia.org/wiki/Bailiwick_of_Guernsey). But as [Wikipedia correctly](https://en.wikipedia.org/wiki/Channel_Islands) reports: "'Channel Islands' is a geographical term, not a political unit. The two bailiwicks have been administered separately since the late 13th century. Each has its own independent laws, elections, and representative bodies.... Any institution common to both is the exception rather than the rule."  [Jersey](https://en.wikipedia.org/wiki/Jersey), for example, is "a self-governing parliamentary democracy under a constitutional monarchy, with its own financial, legal and judicial systems, and the power of self-determination".  For mappping purposes, both Jersey (JE; JEY; 832) and Guernsey (GG; GGY; 831) have their own ISO codes. In truth, it makes more sense NOT to lump Jersey and Guernsey together for the purposes of economic, social, and public health data analysis. Even if Gapminder.org and/or the World Bank did so for some data collections.
+
+
+Conversely, but appropriately, `world_map` places Hong Kong and Macao in the `subregion` column as a `region` of China.  This is geographically and politically correct: but for decades of practice continuing to the present, economic and public health data for Hong Kong and Macao have been gathered separately. Not aggregrated back to China. Each former city-state now "Special Administrative Region" effectively has a `country` level status, as the Gapminder.org and other Global Studies data sets show.
+
+### Historical countries
+
+Finally, on this point, some of the Gapminder data sets also include as a `country` value the dissolved [Netherlands Antilles](https://en.wikipedia.org/wiki/Netherlands_Antilles). If we keep this historical designation which is needed for only a limited number of data analyses, we must otherwise ignore the data for the now independent nations of Aruba and Curacao, as well as the political regroupings of the remaining islands. So although I want a mapping data set highly compatible with the Gapminder.org data sets, it should also work with any Global Studies data set. The value "Netherlands Antilles" will be dropped.
+
+Ideally, `world_map2` should not only  work better with the Gapminder.org data set: it should be interoperable with all reasonably similar Global Studies data sets. So beyond adding, deleting and changing names, and in three cases, adding new polygon coordinates, `world_map2` also contains (when they exist) the [Alpha-2 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2), [Alpha-3 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3), and [Numeric code](https://en.wikipedia.org/wiki/ISO_3166-1_numeric) for each entity represented as a `country` value.
+
+
+## The Data Sets
+The Gapminder.org data sets available for download are generally [sourced to the World Bank](https://www.gapminder.org/data/) and available under a
+[Creative Commons Attribution 4.0 International license](https://www.gapminder.org/free-material/). They cover global trends with the nation-state, the variable `country`, as a primary level of analysis.  The data is also organized chronologically, by `year`.
+
+Between data sets, the names for countries are generally consistent. Some sets do cover more nations (and territories and sub-national units).  
+
+We will use four sets below to test differences in coverage, and to build a country names reference.
+
+```{r gapminder_data_sets}
+# Data sets from Gapminder.org --------------------------------------------
+life_expectancy_years <- read_csv(here::here("data", 
+                                             "raw_data", 
+                                             "life_expectancy_years.csv") ,
+                      show_col_types = FALSE)
+
+total_fertility <- read_csv(here::here("data", 
+                                       "raw_data",
+                                       "children_per_woman_total_fertility.csv"),
+                      show_col_types = FALSE)
+
+energy_use_per_person <- read_csv(here::here("data", 
+                                             "raw_data", 
+                                             "energy_use_per_person.csv"),
+                      show_col_types = FALSE)
+
+demox_eiu <- read_csv(here::here("data", 
+                                 "raw_data", 
+                                 "demox_eiu.csv"),
+                      show_col_types = FALSE)
+
+```
+
+
+### Basic EDA
+
+The Gapminder.org data sets are untidy, and in long format.  We'll deal with those issues later. Depending on the primary variable of interest, we have a different range of nations and years covered.  For example, the data set for *Life Expectancy (years)* has 189 designated countries; the data set for *Total Fertility*, 202 countries; the data set for *Energy Use per Capita*, 169 nations; and the data set for *Democracy Index (EIU)*, 166 nations.  But *Total Fertility*, to take one comparison, does not simply have 13 more listed countries than *Life Expectancy (years)*: we have meaningful set differences in coverage between the sets.
+
+
+```{r gp_eda}
+life_expectancy_years %>% head()
+
+demox_eiu %>% vis_dat()
+
+life_expectancy_years %>% 
+  arrange(country) %>% 
+  select(country)
+
+demox_eiu %>% 
+  arrange(country) %>% 
+  select(country)
+
+life_expectancy_years$country %>% 
+  n_distinct()
+
+energy_use_per_person$country %>% 
+  n_distinct() 
+
+```
+
+
+### Key Differences
+
+Let's explore the similarities and differences in coverage for the country `variable` between the sets.  
+
+```{r gp_set_diffs}
+### Fertility  vs. Life coverage
+setdiff(total_fertility$country, life_expectancy_years$country) %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Fertility  vs. Life coverage" ,
+               row.names = TRUE)
+
+### Life vs. Fertility  coverage
+setdiff(life_expectancy_years$country, total_fertility$country)  %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Life vs. Fertility  coverage" ,
+               row.names = TRUE)
+
+### Fertility  vs. Energy coverage"
+setdiff(total_fertility$country, energy_use_per_person$country)  %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Fertility  vs. Energy coverage",
+               row.names = TRUE)
+
+
+### Energy vs. Fertility coverage
+setdiff(energy_use_per_person$country, total_fertility$country) %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Energy vs. Fertility coverage",
+               row.names = TRUE)
+
+### Life vs. Energy coverage
+setdiff(life_expectancy_years$country, energy_use_per_person$country) %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Life vs. Energy coverage",
+               row.names = TRUE)
+
+### Energy  vs. Life coverage
+setdiff(energy_use_per_person$country,life_expectancy_years$country) %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Energy  vs. Life coverage",
+               row.names = TRUE)
+
+### Energy  vs. Democracy coverage
+setdiff(energy_use_per_person$country,demox_eiu$country) %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Energy  vs. Democracy coverage",
+               row.names = TRUE)
+
+### Democracy vs. Energy coverage
+setdiff(demox_eiu$country,energy_use_per_person$country) %>% 
+  enframe(name = NULL, value = "diff") %>%
+  knitr::kable(caption = "Democracy vs. Energy coverage",
+               row.names = TRUE)
+```
+
+
+Overall, we have fairly complete vector of `country` values. Since the law of diminishing returns has set in our Gapminder data set comparisons, let's build a country name list (dataframe, actually) to test against our map data coverage.
+
+
+#### Gapminder Country Reference List
+
+```{r name_list_ref}
+
+# Gapminder Country Name Reference DF -------------------------------------
+
+country_names <- demox_eiu %>% 
+  select(country) %>% 
+  full_join(energy_use_per_person, by = "country") %>%
+  select(country) %>%
+  full_join(total_fertility, by = "country") %>%
+  select(country)  %>% 
+  full_join(life_expectancy_years, by = "country") %>% 
+  select(country) %>% 
+  arrange(country) 
+
+## Current working total
+country_names$country %>%
+  n_distinct() 
+
+country_names %>% head(n = 10) %>% 
+  knitr::kable(caption = "First Ten Country Designations",
+               row.names = TRUE)
+
+country_names %>% tail(n = 10) %>% 
+  knitr::kable(caption = "Last Ten Country Designations",
+               row.names = TRUE)
+```
+
+So at this point we have `r country_names$country %>% n_distinct()`   unique `country` level units of analysis.  Please note that some `country` designations are better understood as regions within a nation-state, or as overseas territories belonging to a nation-state, rather than as distinct nation-states as recognized by the United Nations or the international community.
+
+## WorldMap Regions
+
+In the data set `world_map`, derived from `ggplot2::map_data("world")`, the `region` variable generally corresponds with the Gapminder `country` variable: but it can also define geographical rather than political entities.  We need to dig into the map data `subregion` to obtain a proper match with `country`. 
+
+Let's have a look.
+
+```{r map_data_original}
+world_map <- ggplot2::map_data("world")
+
+world_map %>% vis_dat()
+## Basic unit is region; subregion mostly NA
+world_map %>% glimpse()
+## group or groups belong to regions
+## order refers the long and lat coordinates for mapping
+## long == longitude lat == latitude
+
+world_map %>% 
+  skimr::skim(region, subregion)
+## more regions than gapminder countries 
+## difference in emphasis
+## subregion contains some units which gapminder treats a country
+```
+
+
+The ggplot2 map data for a global [Mercator projection](https://en.wikipedia.org/wiki/Mercator_projection) uses `region` as the primary unit.  A `region` can have subregions, but always consists of at least one `group`.  The `group` marks out the polygon to be mapped and filled, by longitude `long` and latitude `lat` coordinates in their appropriate order `order`: some regions and even subregions require multiple groups to draw the appropriate shape.  The `subregion` "Hong Kong", for example, has three distinct groups: 668, 669, and 670.  
+
+
+### Tools for Matching
+
+In the majority of cases, we have either an existing or an obvious match between the Gapminder `country` and the map data `region` variables.  But for that minority, we need to dig through the vectors.  Below are some tools for that task.
+
+```{r tools_for_checking}
+
+### Check for example South Sudan
+world_map %>% 
+  filter(stringr::str_detect(region, "Sudan") ) %>% 
+  distinct(region) 
+
+### Check for example South Sudan
+world_map %>% 
+  filter(stringr::str_detect(region, "South") ) %>% 
+  distinct(region) 
+
+### Check for example South Sudan
+country_names %>% 
+  filter(stringr::str_detect(country, "Sudan") ) 
+
+### Check for example South Sudan
+country_names %>% 
+  filter(stringr::str_detect(country, "South") )
+
+
+### Check for example Hong Kong
+world_map %>% 
+  filter(stringr::str_detect(region, "Hong Kong") ) %>% 
+  distinct(region)  # NO!
+
+### Check for example Hong Kong
+world_map %>% 
+  filter(stringr::str_detect(subregion, "Hong Kong") ) %>% 
+  distinct(region, subregion)  # YES!
+
+### Group IDs for coordinates data
+ world_map %>% 
+  filter(stringr::str_detect(subregion, "Hong Kong") ) %>%
+  select(group) %>% 
+   distinct()
+ 
+```
+
+
+### Map vs. Gap
+ 
+Let's identify the mismatches and work to reconcile as many as possible.
+
+```{r map_vs_gap }
+####Identify key differences --------------------------------------
+
+map_vs_gap <- setdiff(world_map$region, country_names$country) %>%
+  enframe(name = NULL, value = "desn") %>% 
+  arrange(desn)
+
+gap_vs_map <- setdiff(country_names$country, world_map$region) %>%
+  enframe(name = NULL, value = "desn") %>% 
+  arrange(desn)
+
+map_vs_gap %>% 
+  knitr::kable(caption = "Map regions vs. Gap countries: Coverage diff",
+               row.names = TRUE)
+
+gap_vs_map  %>% 
+  knitr::kable(caption = "Gap countries vs. Map regions: Coverage diff",
+               row.names = TRUE)
+
+```
+
+When going from the map `region` variable to Gapminder `country` values, we find 66 differences.  Some of these are geographical entities or national subregions or overseas territories that we would not expect to find  considered in the Gapminder data.  Others are simple mismatches easily reconciled.  Another group is a bit more tricky for coding, but logically straightforward. For example, the `country` is "Trinidad and Tobago": the two primary geographical entities are islands "Trinidad"  and "Tobago", both `region` values in the map data.  
+
+When going from the Gapminder `country` to the map `region` values, our primary concern for reconciliation, we find 21 differences.  These break down into four rough categories: *1. Easy Cases*, *2. Island Nations*, *3. Subregion Promotion*, and *4. Do Not Restore*.
+
+
+#### 1. Easy Cases
+
+Dealing with the "Easy Cases", the first group of mismatches, is straightforward. 
+
+```{r easy_cases}
+### Easy cases -- see tools above for digging out names
+
+world_map2 <- world_map %>% 
+  rename(country = region) %>%
+  mutate(country = case_when(country == "Macedonia" ~ "North Macedonia" ,
+                             country == "Ivory Coast"  ~ "Cote d'Ivoire",
+                             country == "Democratic Republic of the Congo"  ~ "Congo, Dem. Rep.",
+                             country == "Republic of Congo" ~  "Congo, Rep.",
+                             country == "UK" ~  "United Kingdom",
+                             country == "USA" ~  "United States",
+                             country == "Laos" ~  "Lao",
+                             country == "Slovakia" ~  "Slovak Republic",
+                             country == "Saint Lucia" ~  "St. Lucia",
+                             country == "Kyrgyzstan"  ~  "Kyrgyz Republic",
+                             country == "Micronesia" ~ "Micronesia, Fed. Sts.",
+                             country == "Swaziland"  ~ "Eswatini", 
+                             country == "Virgin Islands"  ~ "Virgin Islands (U.S.)", 
+                             TRUE ~ country))
+
+
+
+
+
+### Progress check
+setdiff(country_names$country, world_map2$country)  %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Remaining Cases", 
+               row.names = TRUE)
+
+```
+
+We now have eight remaining cases.
+
+#### 2. Island Nations
+
+The cases of [Antigua and Barbuda](https://en.wikipedia.org/wiki/Antigua_and_Barbuda), [St. Kitts and Nevis](https://en.wikipedia.org/wiki/Saint_Kitts_and_Nevis), [Trinidad and Tobago](https://en.wikipedia.org/wiki/Trinidad_and_Tobago), and [St. Vincent and the Grenadines](https://en.wikipedia.org/wiki/Saint_Vincent_and_the_Grenadines) are all similar: combine the related map `region` designations to the appropriate new `country` designation.  In each instance, we can re-organize the existing `group` , `order`, `long` and `lat` values under the new `country` value
+
+```{r judgment_cases}
+
+## Get data for Island nations
+match_names <- c("Antigua" , "Barbuda", "Nevis", 
+                 "Saint Kitts", "Trinidad" , 
+                 "Tobago", "Grenadines" , "Saint Vincent")
+
+### Island nations data set
+map_match <- world_map2 %>% 
+  filter(country %in% match_names) 
+
+map_match %>% distinct(country)
+
+
+### Group IDs for the countries
+ant_bar <- c(137 ,138 )
+kit_nev <- c(930 , 931)
+tri_tog <- c(1425, 1426)
+vin_gre <- c(1575, 1576, 1577)
+# chan_isl <- c(594, 861)
+# neth_ant <- c(1055, 1056)
+
+new_names_ref <- c("Antigua and Barbuda", "St. Kitts and Nevis",
+                   "Trinidad and Tobago", "St. Vincent and the Grenadines")
+
+
+### assign new country names to match Gapminder
+map_match <- map_match %>% 
+  mutate(country = case_when(group %in% ant_bar ~ "Antigua and Barbuda" ,
+                             group %in% kit_nev  ~ "St. Kitts and Nevis" ,
+                             group %in% tri_tog  ~ "Trinidad and Tobago" ,
+                             group %in% vin_gre ~ "St. Vincent and the Grenadines") 
+  ) %>% 
+  tibble()
+
+### Quick checks
+
+map_match %>% head()
+
+map_match %>% 
+  distinct(country)%>% 
+  knitr::kable(caption = "Add to World Map")
+
+map_match %>% 
+  group_by(country) %>% 
+  count(group)  %>% 
+  knitr::kable(caption = "Add to World Map")
+
+#### Structure check for merge
+map_match %>% 
+  str()
+
+world_map2 %>% 
+  str()
+
+
+#### Time to Slice, Dice, and Restack
+
+world_map2 <-  world_map2 %>%
+  filter(!country %in% match_names)
+
+
+world_map2 <- world_map2 %>% 
+  bind_rows(map_match) %>%
+  arrange(country)  %>%
+  tibble()
+
+### Safety check -- should return empty set
+world_map2 %>% 
+  filter(country %in% match_names)
+
+
+### Safety check - should return one complete row each
+world_map2 %>% 
+  filter(country %in% new_names_ref) %>%
+  group_by(country) %>%
+  slice_max(order, n = 1)
+
+
+```
+
+Safety checks passed.  The island nations now included in `world_map2`.
+
+
+#### 3. Subregion Promotion
+The cases of [Macao, China](https://en.wikipedia.org/wiki/Macau), and [Hong Kong, China](https://en.wikipedia.org/wiki/Hong_Kong) differ again: in the map data set, each is a  `subregion` of the `region`  China. But economic and public health data for both former city-states, now Special Administrative Regions in China, has for decades and continues to be treated separately from that of  mainland [China (PRC)](https://en.wikipedia.org/wiki/China). Each, for the purposes of Global Studies, has `country` level status (which is not the same as nation-state status).  So we should follow practice and and treat them as country-level entities in terms of the map data set.
+
+
+```{r hk_macao}
+####
+### Hong Kong and Macao
+####  Pull from subregion; slice out; restack
+
+sub_sleeps <- c("Hong Kong", "Macao")
+
+hk_mc <- world_map2 %>% 
+  filter(subregion %in% sub_sleeps)
+
+hk_mc <- hk_mc %>%
+  mutate(country = case_when(subregion == "Hong Kong" ~ "Hong Kong, China" ,
+                             subregion == "Macao" ~ "Macao, China" ) )
+
+
+### Safety check for bind_rows()
+hk_mc %>% 
+  slice(38:41) %>% 
+  knitr::kable(caption = "Check structure")
+
+### Slice out old info
+world_map2 <-   world_map2 %>%
+  filter(!subregion %in% sub_sleeps)
+
+### Stack in new info
+world_map2 <- world_map2 %>% 
+  bind_rows(hk_mc) %>%
+  select(-subregion) %>% 
+  tibble()
+
+
+### Progress check
+setdiff(country_names$country, world_map2$country)  %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Remaining Cases", 
+               row.names = TRUE)
+
+```
+
+We've added Hong Kong and Macao, and now have only two outstanding cases.
+
+#### 4. Do Not Restore
+Finally, we havetwo cases we arguably should not reconcile.  The [Netherlands Antilles](https://en.wikipedia.org/wiki/Netherlands_Antilles) was dissolved in 2010.  It consisted of the islands Curaçao, Bonaire, Aruba (until 1986), Saba, Sint Eustatius, and Sint Maarten. [Aruba](https://en.wikipedia.org/wiki/Aruba), which  has a `country` designation in the Gapminder data, is a "a constituent country of the Kingdom of the Netherlands"; [Curaçao](https://en.wikipedia.org/wiki/Cura%C3%A7ao) and [Sint Maarten](https://en.wikipedia.org/wiki/Sint_Maarten), likewise.  Each has its own ISO code.  [Bonaire](https://en.wikipedia.org/wiki/Bonaire), Saba, and Sint Eustatius are special municipalities within the country of the Netherlands: all share the same ISO code. By recombining these various constituent countries and special municipalities back into the historical Netherlands Antilles, itself once a constituent country of the [Kingdom of the Netherlands](https://en.wikipedia.org/wiki/Kingdom_of_the_Netherlands), we would do so at the cost of current (since 2010) and future compatibility with data collection and analysis. 
+
+Likewise, for the reasons discussed earlier,  we should pass on restoring the historical designation the [Channel Islands](https://en.wikipedia.org/wiki/Channel_Island). The Channel Islands primarily consist of the  [Bailiwick of Guernsey](https://en.wikipedia.org/wiki/Bailiwick_of_Guernsey) and the [Bailiwick of Jersey](https://en.wikipedia.org/wiki/Jersey).  Guernsey and Jersey both have their own ISO codes and have real-world effective country-level status.
+
+
+##### Map Country List
+
+```{r map_check}
+
+world_map2 %>% distinct(country) %>%
+  DT::datatable(caption = "Map Country List")
+
+### No Tuvalu  in map -- add coordinates
+world_map2 %>% 
+  filter(stringr::str_detect(country, "Tu") ) %>%
+  distinct(country)
+```
+
+
+But as it turns out, we are missing Tuvalu!  This nation was represented in some of the Gapminder data sets.
+
+
+## Missing Coordinates
+
+We now have a new problem. Our map data lacks coordinates --indeed, entries -- for countries or subregions which have ISO codes: the nation [Tuvalu](https://en.wikipedia.org/wiki/Tuvalu), for example, and the territories of [Gibraltar](https://en.wikipedia.org/wiki/Gibraltar) and the [British Virgin Islands](https://en.wikipedia.org/wiki/British_Virgin_Islands).  None of which currently show in our list of countries for the map data. Here is a quick check, using the original `world_map` data.  We will check both the `region` and `subregion` vars.
+
+```{r missing_from_map_to_start}
+# Tuvalu
+world_map %>% 
+  filter(stringr::str_detect(region, "Tu") ) %>% 
+  distinct(region, subregion)
+
+# Tuvalu again
+world_map %>% 
+  filter(stringr::str_detect(subregion, "Tu") ) %>% 
+  distinct(region, subregion) 
+
+# Gibraltar
+world_map %>% 
+  filter(stringr::str_detect(region, "Gib") ) %>% 
+  distinct(region, subregion) 
+
+# Gibraltar
+world_map %>% 
+  filter(stringr::str_detect(subregion, "Gib") ) %>% 
+  distinct(region, subregion) 
+
+```
+
+
+
+For these cases -- but regretfully, not for all -- we can download the polygon coordinates from [OpenDataSource](https://public.opendatasoft.com/explore/?sort=modified).  Some hacking around (not on display here) will get us compatible data sets.
+
+### Adding to the Map
+
+```{r add_tuv}
+### From https://public.opendatasoft.com/ 
+tuvalu_coords <- readRDS(here::here("data", 
+                                    "tidy_data", 
+                                    "tuvalu_coords.rds") )
+
+
+tuvalu_coords %>% head()  ## check structure
+
+
+## Add to map
+world_map2 <- world_map2 %>%
+  bind_rows(tuvalu_coords) %>% 
+  arrange(country)
+
+## Check!
+world_map2 %>% 
+  filter(stringr::str_detect(country, "Tu") ) %>%
+  distinct(country)
+```
+
+
+### Adding more
+
+We've successfully added Tuvalu.  Now, for Gibraltar  and the British Virgin Islands.
+
+```{r add_bvi_gib}
+### Missing also Gibraltar &  Virgin Islands (British)
+### From https://public.opendatasoft.com/ 
+
+Gib_BVI_coords <- readRDS(file = here::here("data",
+                          "tidy_data",
+                          "Gib_BVI_coords.rds"))
+
+Gib_BVI_coords %>% head()
+
+
+world_map2 <- world_map2 %>%
+  bind_rows(Gib_BVI_coords) %>% 
+  arrange(country)
+
+
+world_map2 %>% 
+  filter(stringr::str_detect(country, "Gib") ) %>%
+  distinct(country)
+
+world_map2 %>% 
+  filter(stringr::str_detect(country, "Vir") ) %>%
+  distinct(country)
+```
+
+
+## ISO Country Codes
+
+We now have a map which provides near-complete of the Gapminder.org data sets, and will work for other Global Studies data sets.  We need now to add the [ISO 3166-1 Country Codes](https://en.wikipedia.org/wiki/ISO_3166-1) to our map data: in particular, the [Alpha-2 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2), the [Alpha-3 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3), and the [Numeric code](https://en.wikipedia.org/wiki/ISO_3166-1_numeric). This will ensure compatibility with a greater range of Global Studies data sets.
+
+Please note that the `country_ISO_codes` data set below was compiled and cross-checked using various open sources.  But as [ISO 3166-1](https://en.wikipedia.org/wiki/ISO_3166-1) is a moving target (an ongoing process), this data set will need checking and updating.
+
+```{r country_codes}
+country_ISO_codes <- readRDS(file = here::here("data", 
+                          "tidy_data", 
+                          "country_ISO_codes2.rds") )
+
+country_ISO_codes %>% head()
+```
+
+
+### Missing Norfolk!
+
+It turns out, however, that like our map data, our master list of ISO Country Codes was also not complete.  Finding a free and reliable Open Source version is not easy -- and I do not have access to the commericial version. So, below, how to update `country_ISO_codes`: 
+
+
+```{r update_country_codes}
+
+
+### Missing Norfolk Island
+norfolk_codes <- tibble(s_name = "Norfolk Island",
+                        code_2 = "NF", 
+                        code_3 = "NFK",
+                        code_num = 574,
+                        form_name = "Territory of Norfolk Island, Australia")
+
+norfolk_codes %>% head()
+
+country_ISO_codes2 <- country_ISO_codes %>%
+  bind_rows(norfolk_codes) %>% 
+  arrange(s_name)
+
+country_ISO_codes2 %>% 
+  filter(code_2 == "NF") %>% 
+  slice(n=1)
+```
+
+### Reconcilation Check
+
+Now that we have our ISO Country Codes loaded and updated, we are almost ready to add them to the map data.  One set of checks for differences.
+
+```{r check_remaining_differences}
+
+### Remaining  Gapmminder cases -- the two historical entities
+setdiff(country_names$country, world_map2$country)  %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Gap vs Map: Remaining Cases", 
+               row.names = TRUE)
+
+
+setdiff(country_ISO_codes2$s_name , world_map2$country)  %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "ISO vs Map: Remaining Cases", 
+               row.names = TRUE)
+
+
+setdiff(world_map2$country, country_ISO_codes2$s_name)  %>% 
+  enframe(name = NULL, value = "diff") %>% 
+  knitr::kable(caption = "Map vs. ISO:  Remaining Cases", 
+               row.names = TRUE)
+
+```
+
+So our checks indicate success.  First, we declined to restore the two defunct designations, once of which reflected an historical country-level entity, and the other, a geographically convenient label. Our map data set by decision will not account for the Netherlands Antilles or the Channel Islands.  
+
+Second, of the ISO vs Map cases, only the sparsely populated [Tokelau](https://en.wikipedia.org/wiki/Tokelau) possibly matters, but [OpenDataSoft](https://public.opendatasoft.com/) does not have the polygon coordinates for it.  The [Chagos Archipelago](https://en.wikipedia.org/wiki/Chagos_Archipelago), included in our map, makes up the most important part of the [British Indian Ocean Territory](https://en.wikipedia.org/wiki/British_Indian_Ocean_Territory).  The remaining four cases comprise either seasonally inhabited regions or (and) remote military bases.  These produce negligible data in terms of economic or public health statistics, and can be safely ignored for such purposes.  
+
+Third and finally, the original map makers included the [Siachen Glacier](https://en.wikipedia.org/wiki/Siachen_Glacier).  This is a geographical entity and a disputed territory: but it does not have an individual ISO code, does not have civilian residents (only military), and does not produce the relevant economic or public health data. So it can be safely removed from `world_map2`.
+
+
+### Add ISO to Map
+
+```{r add_ISO_to_map_data}
+world_map2 <- world_map2 %>%
+  filter(country != "Siachen Glacier") %>%
+  left_join(country_ISO_codes2, by = c("country" = "s_name")) %>%
+  tibble() 
+
+
+world_map2 %>% vis_dat()
+
+world_map2 %>% glimpse()
+
+```
+
+The slight seeming glitch or NA space in the data set: [Canary Islands](https://en.wikipedia.org/wiki/Canary_Islands), which has an alpha-2 code "IC" still in use, but no alpha-3 or numeric code. Instead, it has been recoded as [ES-CN](https://en.wikipedia.org/wiki/ISO_3166-2:ES): a subdivision of Spain.
+
+## Save and Done
+
+We now have mapping data with the following standard ISO country codes: [Alpha-2 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2), [Alpha-3 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3), and [Numeric code](https://en.wikipedia.org/wiki/ISO_3166-1_numeric). We can match by `country` name to the majority of Gapminder.org data sets, and we can match by to any Global Studies data set which likewise uses one or more of the above ISO country codes. So the data set `world_map2_ISO` offers an update on `ggplot2::map_data("world")` with improved interoperability.
+
+
+```{r all_good_save}
+save_data <- c("world_map2",
+               "country_ISO_codes2")
+
+# Save Data! --------------------------
+save(list = save_data, file = here::here("data",
+                                         "tidy_data", 
+                                         "maps", 
+                                         "world_map2_project.rda" ))
+## Just the map data
+saveRDS(world_map2, file = here::here("data",
+                                         "tidy_data", 
+                                         "maps", 
+                                         "world_map2.rds" ))
+```
+
+
+
+
+
+### Download from
+Or, please improve and share: [github.com/Thom-J-H/map_Gap_2_Tidy](https://github.com/Thom-J-H/map_Gap_2_Tidy)
+
+
+<hr />
+<div style = "background-color: #F0F8FF; padding: 1em;">
+<p>Thomas J. Haslam  <br />
+`r Sys.Date()` 
+</p>
+</div>
+<hr />
+
+
+#### Session Info
+```{r package info, echo = FALSE}
+ses_info <- sessioninfo::package_info() %>% tibble() 
+ses_info %>% select(c(1,3,8,9)) %>% DT::datatable()
+```
+
+
+
+
