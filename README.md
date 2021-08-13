@@ -16,7 +16,7 @@ Our updated version, `world_map2`, both allows for graceful failure when data is
 
 So we no longer need to rely on name matching if our statistical data uses the ISO country codes as identifiers.  The markdown document explaining the making of `world_map2` is archived here at GitHub and [published at RPubs](https://rpubs.com/Thom_JH/world_map2). The updated data set is available here.
 
-Thank you for reading! Pleae feel free to improve `world_map2`.
+Thank you for reading! Please feel free to improve `world_map2`.
 
 TJ Haslam
 
