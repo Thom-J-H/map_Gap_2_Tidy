@@ -6,6 +6,7 @@ If we want to do a simple [Choropleth maps](https://en.wikipedia.org/wiki/Chorop
 
 ![fail_bad](https://user-images.githubusercontent.com/12042357/129316416-d6fdceeb-8d83-4521-8737-255afc89373b.png)
 
+The white spaces for Afghanistan and various nations in Africa and Southeast Asia are unnecessarily confusing. Missing data does not mean these nations were replaced by ocean or otherwise ceased to exist.
 
 Instead, we want to fail gracefully. NA cases should be displayed: knowing that we have no data for certain nations is both important and useful. The following would better serve:
 
