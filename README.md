@@ -27,6 +27,6 @@ TJ Haslam
 
 <hr />
 
-1. [Updating ggplot::map_data('world')](https://rpubs.com/Thom_JH/world_map2) 
+1. [Updating ggplot::map_data('world')](https://rpubs.com/Thom_JH/world_map2) -- Making of `world_map2`. 
 
-2. [Using world_map2](https://rpubs.com/Thom_JH/using_world_map2)
+2. [Using world_map2](https://rpubs.com/Thom_JH/using_world_map2)  -- Case studies using `world_map2`. 
