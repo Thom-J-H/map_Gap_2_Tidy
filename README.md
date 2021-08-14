@@ -21,7 +21,7 @@ A markdown document [Using world_map2](https://rpubs.com/Thom_JH/using_world_map
 ### Greater Interoperability
 So we no longer need to rely on name matching if our statistical data uses the ISO country codes as identifiers.  The markdown document explaining the making of `world_map2` is archived here at GitHub and [published at RPubs](https://rpubs.com/Thom_JH/world_map2). The updated data set is available here.
 
-Thank you for reading! Please feel free to improve `world_map2`.
+Thank you for reading! Please feel free to improve [world_map2](https://github.com/Thom-J-H/map_Gap_2_Tidy/blob/main/world_map2_project.rda).
 
 TJ Haslam
 
