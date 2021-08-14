@@ -2,7 +2,7 @@
 **Mapping Gapminder.org Data Sets with the Tidyverse -- Keeping it Simple as Possible.**
 
 
-If we want to do a simple [Choropleth maps](https://en.wikipedia.org/wiki/Choropleth_map) in the Tidyverse, and so likely using `ggplot2::map_data("world")`, we might get a result like this when our mapping data and Global Studies data have name mismatches or missing information:
+If we want to do simple [Choropleth maps](https://en.wikipedia.org/wiki/Choropleth_map) in the Tidyverse, and so likely using `ggplot2::map_data("world")`, we might get a result like this when our mapping data and Global Studies data have name mismatches or missing information:
 
 ![fail_bad](https://user-images.githubusercontent.com/12042357/129316416-d6fdceeb-8d83-4521-8737-255afc89373b.png)
 
