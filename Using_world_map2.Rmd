@@ -1,0 +1,403 @@
+---
+title: "Using world_map2"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes 
+    toc_float: yes
+  toc: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.align = "center",
+	fig.fullwidth = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+
+```{r libs_one}
+library(tidyverse)
+library(here)
+library(visdat)
+```
+
+
+## Brief Introduction
+
+The data set `world_map2`, a derivative and update of `ggplot2::map_data("world")`, was created for easier mapping of Global Studies data in the [Tidyverse](https://jhudatascience.org/tidyversecourse/).  To not solely rely on matching country or region names, which can vary considerably per the data source, `world_map2` contains following the ISO country codes: [Alpha-2 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2), [Alpha-3 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3), and [Numeric code](https://en.wikipedia.org/wiki/ISO_3166-1_numeric). (To  download and/or improve `world_map2`:  [world_map2_project.rda](https://github.com/Thom-J-H/map_Gap_2_Tidy/blob/main/world_map2_project.rda)). 
+
+
+The process behind making `world_map2` is described in a [separate markdown](https://rpubs.com/Thom_JH/798825).  This markdown showcases how to use `world_map2` with Global Studies data. This markdown uses data from the [Gapminder.org foundation](https://www.gapminder.org/data/) as examples of typical Global Studies data.  We want to show the annual results in [Choropleth maps](https://en.wikipedia.org/wiki/Choropleth_map).  
+
+
+```{r data_map_gs}
+# our custom map data
+load(here::here("data",
+                "tidy_data", 
+                "maps", 
+                "world_map2_project.rda"))
+
+
+# raw Global Studies dat from Gapminder.org
+gni_percapita <- read_csv(here::here("data",
+                                         "raw_data",                               
+                                         "gnipercapita_ppp_current_international.csv") )
+
+# raw Global Studies dat from Gapminder.org
+water_access <- read_csv(here::here("data", 
+                                    "raw_data",                               
+                                    "at_least_basic_water_source_overall_access_percent.csv") )
+
+
+# raw Global Studies dat from Gapminder.org
+energy_capita <- read_csv(here::here("data",
+                                     "raw_data",
+                                     "energy_use_per_person.csv"))
+
+```
+
+
+## Case Study: Energy
+The first data set, "Energy use, per person", is from Gapminder.org but sourced from there to the World Bank. We will proceed by exploring it, creating a Tidy version, and then mapping the Tidy version.  Our try at mapping will introduce and troubleshoot a common problem.
+
+
+### EDA Enegry
+
+We see that the data is in a wide format, and not Tidy. It does not use ISO country codes.  In fact, none of data sets available from [Gapminder.org/data](https://www.gapminder.org/data/) do so. So we will need to match `country` names.
+
+```{r energy_eda}
+energy_capita  %>% vis_dat()
+
+energy_capita  %>% glimpse()
+```
+
+When converting to a Tidy data format, we want to make sure the variable `year` is not a character.  But first, let's check to see if the country names in `energy_capita` have a match in our mapping data.
+
+
+```{r energy_diff}
+setdiff(energy_capita$country,world_map2$country)
+
+setdiff(world_map2$country, energy_capita$country) %>% 
+  enframe(name = NULL, value ="diff")
+```
+Yes!  All the values for the `country` variable in our Global Studies data have a match in `world_map2`.  We have only 169 countries in `energy_capita`, so this comprises only a subset of the countries in `world_map2`.  
+
+### Tidy Energy
+
+```{r eng_tidy}
+energy_tidy <- energy_capita  %>%
+  pivot_longer(cols = !country,
+               names_to = "year",
+               names_transform = list(year = as.integer),
+               values_to = "energy")
+
+energy_tidy  %>% vis_dat()
+
+energy_tidy  %>% glimpse()
+```
+
+### Map left_join()
+
+We have `energy_tidy`.  It nows seems a simple step to `left_join` it to the map data, and then plot the energy values for a given year.  But this will result in void spaces on our map.
+
+
+```{r missing_dat}
+energy_tidy %>%
+  filter(year == 2004) %>% 
+  left_join(world_map2, by = "country") %>%
+  ggplot(aes(x = long, 
+             y = lat, 
+             group = group, 
+             label = country)) +
+  geom_polygon(aes(fill = energy) )+
+  scale_fill_viridis_c(option = "C") +
+  labs(fill = "Energy Use\nPer Capita",
+       title = "Gapminder Data: 2004") +
+  theme_void()
+```
+
+The white spaces for Afghanistan and various nations in Africa and Southeast Asia are unnecessarily confusing. Although these nations were not reported on in `energy_tidy`, that does not mean they were replaced by ocean or otherwise ceased to exist.
+
+We want the map to fail gracefully. Missing countries would be better treated as NA cases. And NA cases should be displayed. knowing that we have no data for certain nations is both important and useful.
+
+
+### Using complete()
+
+So we want to expand the data set before we join it with the mapping data. The Tidyverse verb [complete()](https://tidyr.tidyverse.org/reference/complete.html) helps solve this problem.  For the missing `energy` values, we will assign `NA` using `replace_na()`. This ensures that our plot will use all listed countries, showing the `NA` when applicable. Again, we want both graceful failure and to know when we are missing information.
+
+```{r better_ver}
+
+energy_tidy %>%
+  filter(year == 2004) %>% 
+  complete(country = world_map2$country, 
+           fill = (list(energy = NA )) ) %>%
+  left_join(world_map2, by = "country") %>%
+  replace_na(list(year = 2004)) %>%
+  ggplot(aes(x = long, 
+             y = lat, 
+             group = group, 
+             label = country)) +
+  geom_polygon(aes(fill = energy) )+
+  scale_fill_viridis_c(option = "C") +
+  labs(fill = "Energy Use\nPer Capita",
+       title = "Gapminder Data: 2000") +
+  theme_void()
+
+```
+
+This version fails much more gracefully.  It also makes clearer for what regions of the world we lack data.
+
+
+#### Interactivity made easy
+
+Let's say that someone thinks [Antarctica](https://en.wikipedia.org/wiki/Antarctica) justs wastes space in this or like plots as it seldom generates economic, political science, or public health data. We can remove it with a simple filter call.  Likewise, we can make the map interactive with one additional library and function call: [plotly](https://plotly.com/r/) and `ggplotly()`.
+
+For `plotly::ggplotly()`, the default legend guide will not carry over.  We can solve this by changing the title.
+
+In the code below, this is broken down into three steps.  First, create the data set for the plot.  Second, create the ggplot object.  Third, display it as plotly graphic.
+
+```{r plt_ver}
+# Map data
+enegry_dat_2004 <- energy_tidy %>%
+  filter(year == 2004) %>% 
+  complete(country = world_map2$country, 
+           fill = (list(energy = NA )) ) %>%
+  left_join(world_map2, by = "country") %>%
+  replace_na(list(year = 2004))
+
+# ggplot object
+enegry_map_2004 <- enegry_dat_2004 %>%
+  filter(code_3 != "ATA") %>%
+   ggplot(aes(x = long, 
+             y = lat, 
+             group = group, 
+             label = country)) +
+  geom_polygon(aes(fill = energy) )+
+  scale_fill_viridis_c(option = "C") +
+  labs(fill = "",
+       title = "Energy Use Per Capita (2004)") +
+  theme_void()
+
+# interactive version
+plotly::ggplotly(enegry_map_2004)
+
+```
+
+
+So we now have a procedure.  This project originated with a course entitled "Telling Stories with Data" (*TSD*), which  introduced non-STEM majors to the [Tidyverse](https://jhudatascience.org/tidyversecourse/) and basic data visualization and analysis. Beginning students find it useful to have a proven model to follow.  We have one now for our [Choropleth maps](https://en.wikipedia.org/wiki/Choropleth_map), Let's apply it to two other Gapminder.org data sets.
+
+
+## CS: Water Access
+The second data set, "At least basic water source, overall access", is likewise from Gapminder.org but sourced from there to the UN's Millennium Development Goals.  We will apply the procedure -- the "recipe" of steps -- developed when mapping Energy as above.
+
+
+### EDA: Water Access
+The data set "At least basic water source, overall access" has values for 194 countries, some `NA`, for the years 2000 to 2017.
+
+```{r water_eda}
+water_access  %>% vis_dat()
+water_access  %>% glimpse()
+```
+
+This data set again is in wide format, and not Tidy. But we know how to fix, and can largely recycle our solution for `energy_capita` to `energy_tidy`.  We now need to check the how well the country names match -- do we have coverage?
+
+```{r water_diff}
+setdiff(water_access$country,world_map2$country)
+setdiff(world_map2$country, water_access$country)  %>% 
+  enframe(name = NULL, value ="diff")
+```
+
+So our map data provides complete coverage for our statistical data.  Now, let's Tidy the data, and then use `complete()` with `left_join()` to create our plot data sets.
+
+### Tidy Water
+```{r water_tidy}
+water_tidy <- water_access %>%
+  pivot_longer(cols = !country,
+               names_to = "year",
+               names_transform = list(year = as.integer),
+               values_to = "water")
+
+
+water_tidy %>% 
+  vis_dat()
+
+water_tidy %>% 
+  glimpse()
+```
+
+All good.
+
+
+### Map & Plot
+
+```{r use_complete}
+water_dat_2010 <- water_tidy %>%
+  filter(year == 2010) %>% 
+  complete(country = world_map2$country, 
+           fill = (list(water = NA )) ) %>%
+  left_join(world_map2, by = "country") %>%
+  replace_na(list(year = 2010))
+
+```
+
+#### Create Plot Object
+
+```{r com_ex}
+water_mpa_2010 <- water_dat_2010 %>%
+  filter(code_3 != "ATA") %>%
+  ggplot(aes(x = long, 
+             y = lat, 
+             group = group, 
+             label = country)) +
+  geom_polygon(aes(fill = water) )+
+  scale_fill_viridis_c(option = "C") +
+  labs(fill = "",
+       title = "Basic Water Access (2010)") +
+  theme_void()
+
+water_mpa_2010
+```
+
+#### Plotly version
+
+```{r gni_plotly}
+plotly::ggplotly(water_mpa_2010)
+```
+
+Since we have a proven procedure, we can now tackle a slightly more difficult case.
+
+## CS: GNI Per Capita
+
+Our  third data set, "GNI per capita (PPP, current international $)", is likewise from Gapminder.org, but sourced from there to the World Bank. It also regretfully does not use any ISO codes for identifying the countries reported on.  We are back to matching names.
+
+
+### EDA: GNI Per Capita
+This data is wide, not Tidy, and has one additional issue. It reports on 196 countries over the time span 1990-2019. The values for [GNI Per Capita](https://en.wikipedia.org/wiki/Gross_national_income) should be numeric.  Instead, they are character data.  Values under 10000 appear as numbers; values over 10000 are expressed as k-units: for example, 13.2k for 13200.  
+
+
+```{r gni_eda}
+gni_percapita %>% 
+  vis_dat()
+
+gni_percapita %>% 
+  glimpse()
+
+```
+
+To properly parse this data, we need to explore a bit more and think our way through the problem. We also need to check the country coverage.
+
+
+```{r gni_diff}
+setdiff(gni_percapita$country, world_map2$country) %>% 
+  enframe(name = NULL, value ="diff")
+
+setdiff(world_map2$country, gni_percapita$country) %>% 
+  enframe(name = NULL, value ="diff")
+```
+
+### Troubleshoot to Tidy
+We have two mismatches: "Curaçao", which uses the special character "ç"; and "Sint Maarten (Dutch part)", which contains the addition of "(Dutch part)".  Although both these names are now becoming more regularly used as the short designations for these countries, we will still normalize them to simpler versions: "Curaçao" will be simplified to "Curacao", and "Sint Maarten (Dutch part)" to "Sint Maarten". Why? Special characters do not always play well in data sets or in coding, and the parenthetical information can also cause problems. It would be better if the data sets used the ISO country codes in addition to the short version of the country names.  But the Gapminder.org data sets so far do not.
+
+Now, back to the bigger issue.  We need to convert the GNI Per Capita values to numbers. But the values previously expressed as *something k* need to be multiplied by 1000. 
+
+We have several ways of doing this.  Below is one solution that relies on a cut-off value of 175. This assumes -- based an exploration of the data -- that we have no nations in this set with a reported GNI Per Capita greater than 199000, and that we have no nations with a reported  GNI Per Capita less than 200.  The top and bottom values will shortly be displayed.
+
+
+```{r gni_tidy}
+gni_tidy <- gni_percapita %>%
+    pivot_longer(cols = !country,
+                 names_to = "year",
+                 names_transform = list(year = as.integer),
+                 values_to = "gni_ppp_cap") %>%
+  mutate(gni_ppp_cap = readr::parse_number(gni_ppp_cap) )%>%
+  mutate(gni_ppp_cap = case_when(gni_ppp_cap < 200 ~ gni_ppp_cap * 1000,
+                                 TRUE ~ gni_ppp_cap) )
+
+gni_tidy  <- gni_tidy %>%
+  mutate( country = case_when(country == "Curaçao" ~ "Curacao",
+                              country == "Sint Maarten (Dutch part)"  ~ "Sint Maarten" ,
+                              TRUE ~ country) )
+
+
+# Brief check
+gni_tidy  %>% slice_min(gni_ppp_cap, n = 4)
+gni_tidy %>% slice_max(gni_ppp_cap, n = 4)
+```
+
+So as it turns out, our cut-off was effective. The lowest reported GNI Per Capita: 270, for Mozambique in 1992.  The highest, 132000 for Qatar in 2012 and Macao in 2014.	
+
+
+We should now recheck country coverage.
+
+```{r gni_check}
+setdiff(gni_tidy$country, world_map2$country)
+
+gni_tidy %>%
+  vis_dat()
+```
+
+Complete coverage.  And all variables the right types. We have mapping data for all the countries in `gni_tidy`.  We are now ready to make our maps.  From here, we follow the earlier recipe.
+
+### Map & Plot
+
+```{r gni_dat}
+gni_dat_2017 <- gni_tidy %>%
+  filter(year == 2017) %>% 
+  complete(country = world_map2$country, 
+           fill = (list(gni_ppp_cap = NA)) ) %>%
+  left_join(world_map2, by = "country") %>%
+  replace_na(list(year = 2017))
+
+
+gni_map_2017 <- gni_dat_2017%>%
+  filter(code_3 != "ATA") %>%
+  ggplot(aes(x = long, 
+             y = lat, 
+             group = group, 
+             label = country)) +
+  geom_polygon(aes(fill = gni_ppp_cap) )+
+  scale_fill_viridis_c(option = "C") +
+  labs(fill = "",
+       title = "GNI Per Capita for 2017 (in PPP dollars)") +
+  theme_void()
+
+gni_map_2017 
+```
+
+
+```{r gni_plotly3}
+plotly::ggplotly(gni_map_2017 )
+```
+
+## Summary
+
+The three above case studies show how to use Global studies data and`world_map2` with `complete()` to produce better [Choropleth maps](https://en.wikipedia.org/wiki/Choropleth_map). As opposed to the default`ggplot2::map_data("world")`, the updated [world_map2](https://github.com/Thom-J-H/map_Gap_2_Tidy/blob/main/world_map2_project.rda) both fails gracefully when we have missing countries or data, and contains the following standard ISO country codes: [Alpha-2 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2), [Alpha-3 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3), and [Numeric code](https://en.wikipedia.org/wiki/ISO_3166-1_numeric). As such, we can match by `country` name to the majority of Gapminder.org data sets, and we can match by to any Global Studies data set which likewise uses one or more of the above ISO country codes. The bottom line: better graphs and improved interoperability while keeping it (relatively) simple in the Tidyverse.
+
+
+
+### Download from
+Or, please improve and share: [github.com/Thom-J-H/map_Gap_2_Tidy](https://github.com/Thom-J-H/map_Gap_2_Tidy)
+
+
+<hr />
+<div style = "background-color: #F0F8FF; padding: 1em;">
+<p>Thomas J. Haslam  <br />
+`r Sys.Date()` 
+</p>
+</div>
+<hr />
+
+
+#### Session Info
+```{r package info, echo = FALSE}
+ses_info <- sessioninfo::package_info() %>% tibble() 
+ses_info %>% select(c(1,3,8,9)) %>% DT::datatable()
+```
+
+
+
+
