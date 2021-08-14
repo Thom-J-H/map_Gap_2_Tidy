@@ -26,6 +26,6 @@ Thank you for reading! Please feel free to improve [world_map2](https://github.c
 TJ Haslam
 
 <hr />
-1. [Updating ggplot2::map_data](https://rpubs.com/Thom_JH/world_map2) 
+1. [Updating map_data('world')](https://rpubs.com/Thom_JH/world_map2) 
 
 2. [Using world_map2](https://rpubs.com/Thom_JH/using_world_map2)
