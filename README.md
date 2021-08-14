@@ -8,12 +8,17 @@ If we want to do a simple [Choropleth maps](https://en.wikipedia.org/wiki/Chorop
 
 The white spaces for Afghanistan and various nations in Africa and Southeast Asia are unnecessarily confusing. Missing data does not mean these nations were replaced by ocean or otherwise ceased to exist.
 
+### Fail Gracefully
 Instead, we want to fail gracefully. NA cases should be displayed: knowing that we have no data for certain nations is both important and useful. The following would better serve:
 
 ![fail_better](https://user-images.githubusercontent.com/12042357/129316825-81e82867-661e-4564-9d5c-38f6512ff38c.png)
 
 Our updated version, `world_map2`, both allows for graceful failure when data is missing, and contains the standard ISO country codes: [Alpha-2 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2), [Alpha-3 code](https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3), and [Numeric code](https://en.wikipedia.org/wiki/ISO_3166-1_numeric).
 
+A markdown document [Using world_map2](https://rpubs.com/Thom_JH/using_world_map2) offers examples in Tidying and mapping Global Studies data sets with [world_map2](https://github.com/Thom-J-H/map_Gap_2_Tidy/blob/main/world_map2_project.rda).  The same document is also archived here.
+
+
+### Greater Interoperability
 So we no longer need to rely on name matching if our statistical data uses the ISO country codes as identifiers.  The markdown document explaining the making of `world_map2` is archived here at GitHub and [published at RPubs](https://rpubs.com/Thom_JH/world_map2). The updated data set is available here.
 
 Thank you for reading! Please feel free to improve `world_map2`.
