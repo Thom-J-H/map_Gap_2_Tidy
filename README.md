@@ -39,3 +39,22 @@ Reports @ RPubs:
 
 2. [Using world_map2](https://rpubs.com/Thom_JH/using_world_map2) ::  Case studies using `world_map2`. 
 
+
+
+<p xmlns:dct="http://purl.org/dc/terms/" xmlns:vcard="http://www.w3.org/2001/vcard-rdf/3.0#">
+  <a rel="license"
+     href="http://creativecommons.org/publicdomain/zero/1.0/">
+    <img src="https://licensebuttons.net/p/zero/1.0/88x31.png" style="border-style: none;" alt="CC0" />
+  </a>
+  <br />
+  To the extent possible under law,
+  <a rel="dct:publisher"
+     href="https://github.com/Thom-J-H/map_Gap_2_Tidy">
+    <span property="dct:title">Thomas Joseph Haslam</span></a>
+  has waived all copyright and related or neighboring rights to
+  <span property="dct:title">Mapping Global Studies Data with the Tidyverse</span>.
+This work is published from:
+<span property="vcard:Country" datatype="dct:ISO3166"
+      content="US" about="https://github.com/Thom-J-H/map_Gap_2_Tidy">
+  United States</span>.
+</p>
